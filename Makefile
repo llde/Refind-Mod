@@ -88,6 +88,7 @@ gnuefi:
 	+make MAKEWITH=GNUEFI -C $(EFILIB_DIR)
 	+make MAKEWITH=GNUEFI -C $(LOADER_DIR)
 	+make MAKEWITH=GNUEFI -C $(GPTSYNC_DIR) gnuefi
+	+make MAKEWITH=GNUEFI -C $(FS_DIR) all_gnuefi
 
 all_gnuefi: gnuefi fs_gnuefi
 
