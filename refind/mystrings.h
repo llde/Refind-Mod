@@ -46,6 +46,7 @@ VOID ToLower(CHAR16 * MyString);
 VOID MergeStrings(IN OUT CHAR16 **First, IN CHAR16 *Second, CHAR16 AddChar);
 VOID MergeWords(CHAR16 **MergeTo, CHAR16 *InString, CHAR16 AddChar);
 BOOLEAN LimitStringLength(CHAR16 *TheString, UINTN Limit);
+CHAR16 *FindNumbersLinux(IN CHAR16 *InString);
 CHAR16 *FindNumbers(IN CHAR16 *InString);
 UINTN NumCharsInCommon(IN CHAR16* String1, IN CHAR16* String2);
 CHAR16 *FindCommaDelimited(IN CHAR16 *InString, IN UINTN Index);

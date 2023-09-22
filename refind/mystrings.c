@@ -28,6 +28,7 @@
 #include "lib.h"
 #include "screen.h"
 #include "../include/refit_call_wrapper.h"
+#include "log.h"
 
 BOOLEAN StriSubCmp(IN CHAR16 *SmallStr, IN CHAR16 *BigStr) {
     BOOLEAN Found = 0, Terminate = 0;
@@ -280,6 +281,32 @@ CHAR16 *FindNumbers(IN CHAR16 *InString) {
     } // if (EndOfElement > 0)
     return (Found);
 } // CHAR16 *FindNumbers()
+
+CHAR16 *FindNumbersLinux(IN CHAR16 *InString) {
+    UINTN StartOfElement = 0, EndOfElement = 0, CopyLength;
+    CHAR16 *Found = NULL;
+
+    if (InString == NULL)
+        return NULL;
+
+    EndOfElement = StrLen(InString);
+	if(IsInSubstring(InString, L"vmlinuz")){
+		StartOfElement = MyStrStr(InString, L"vmlinuz") - InString + StrLen(L"vmlinuz");
+	}
+    LOG(1, LOG_LINE_NORMAL, L"Parsing version string is '%s'", InString + StartOfElement);
+
+    // Extract the target element
+    if (EndOfElement > 0) {
+        if (EndOfElement >= StartOfElement) {
+            CopyLength = EndOfElement - StartOfElement + 1;
+            Found = StrDuplicate(&InString[StartOfElement]);
+            if (Found != NULL)
+                Found[CopyLength] = 0;
+        } // if (EndOfElement >= StartOfElement)
+    } // if (EndOfElement > 0)
+    return (Found);
+} // CHAR16 *FindNumbersLinux()
+
 
 // Returns the number of characters that are in common between
 // String1 and String2 before they diverge. For instance, if

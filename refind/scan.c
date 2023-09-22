@@ -380,9 +380,10 @@ VOID GenerateSubScreen(LOADER_ENTRY *Entry, IN REFIT_VOLUME *Volume, IN BOOLEAN 
         if (File != NULL) {
             InitrdName =  FindInitrd(Entry->LoaderPath, Volume);
             TokenCount = ReadTokenLine(File, &TokenList);
-            KernelVersion = FindNumbers(Entry->LoaderPath);
+            KernelVersion = FindNumbersLinux(Entry->LoaderPath);
             if (TokenCount >= 2) {
                 ReplaceSubstring(&(TokenList[1]), KERNEL_VERSION, KernelVersion);
+                ReplaceSubstring(&(TokenList[1]), KERNEL_FILE, InitrdName);
             }
             // first entry requires special processing, since it was initially set
             // up with a default title but correct options by InitializeSubScreen(),
@@ -394,6 +395,7 @@ VOID GenerateSubScreen(LOADER_ENTRY *Entry, IN REFIT_VOLUME *Volume, IN BOOLEAN 
             FreeTokenLine(&TokenList, &TokenCount);
             while ((TokenCount = ReadTokenLine(File, &TokenList)) > 1) {
                 ReplaceSubstring(&(TokenList[1]), KERNEL_VERSION, KernelVersion);
+                ReplaceSubstring(&(TokenList[1]), KERNEL_FILE, InitrdName);
                 SubEntry = InitializeLoaderEntry(Entry);
                 SubEntry->me.Title = TokenList[0] ? StrDuplicate(TokenList[0]) : StrDuplicate(L"Boot Linux");
                 MyFreePool(SubEntry->LoadOptions);

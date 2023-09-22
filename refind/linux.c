@@ -78,16 +78,14 @@
 // the same amount of characters, the initrd file with the shortest file name is used.
 // If no matching init file can be found, returns NULL.
 CHAR16 * FindInitrd(IN CHAR16 *LoaderPath, IN REFIT_VOLUME *Volume) {
-    CHAR16              *InitrdName = NULL, *FileName, *KernelVersion, *InitrdVersion, *Path;
-    CHAR16              *KernelPostNum, *InitrdPostNum;
-    UINTN               MaxSharedChars, SharedChars;
-    STRING_LIST         *InitrdNames = NULL, *FinalInitrdName = NULL, *CurrentInitrdName = NULL, *MaxSharedInitrd;
+    CHAR16              *FileName, *KernelVersion, *Path;
+    CHAR16		        *CurrentInitrdName = NULL;
     REFIT_DIR_ITER      DirIter;
     EFI_FILE_INFO       *DirEntry;
 
     LOG(1, LOG_LINE_NORMAL, L"Searching for an initrd to match '%s' on '%s'", LoaderPath, Volume->VolName);
     FileName = Basename(LoaderPath);
-    KernelVersion = FindNumbers(FileName);
+    KernelVersion = FindNumbersLinux(FileName);
     LOG(3, LOG_LINE_NORMAL, L"Kernel version string is '%s'", KernelVersion);
     Path = FindPath(LoaderPath);
 
@@ -102,51 +100,29 @@ CHAR16 * FindInitrd(IN CHAR16 *LoaderPath, IN REFIT_VOLUME *Volume) {
     // building the InitrdName later....
     if ((StrLen(Path) > 0) && (Path[StrLen(Path) - 1] != L'\\'))
         MergeStrings(&Path, L"\\", 0);
-    while (DirIterNext(&DirIter, 2, L"init*,booster*", &DirEntry)) {
-        InitrdVersion = FindNumbers(DirEntry->FileName);
-        if (((KernelVersion != NULL) && (MyStriCmp(InitrdVersion, KernelVersion))) ||
-            ((KernelVersion == NULL) && (InitrdVersion == NULL))) {
-                CurrentInitrdName = AllocateZeroPool(sizeof(STRING_LIST));
-                if (InitrdNames == NULL)
-                    InitrdNames = FinalInitrdName = CurrentInitrdName;
-                if (CurrentInitrdName) {
-                    CurrentInitrdName->Value = PoolPrint(L"%s%s", Path, DirEntry->FileName);
-                    if (CurrentInitrdName != FinalInitrdName) {
-                        FinalInitrdName->Next = CurrentInitrdName;
-                        FinalInitrdName = CurrentInitrdName;
-                    } // if
-                } // if
-        } // if
-        MyFreePool(InitrdVersion);
-    } // while
-    if (InitrdNames) {
-        if (InitrdNames->Next == NULL) {
-            InitrdName = StrDuplicate(InitrdNames -> Value);
-        } else {
-            MaxSharedInitrd = CurrentInitrdName = InitrdNames;
-            MaxSharedChars = 0;
-            while (CurrentInitrdName != NULL) {
-                KernelPostNum = MyStrStr(LoaderPath, KernelVersion);
-                InitrdPostNum = MyStrStr(CurrentInitrdName->Value, KernelVersion);
-                SharedChars = NumCharsInCommon(KernelPostNum, InitrdPostNum);
-                if (SharedChars > MaxSharedChars || (SharedChars == MaxSharedChars && StrLen(CurrentInitrdName->Value) < StrLen(MaxSharedInitrd->Value))) {
-                    MaxSharedChars = SharedChars;
-                    MaxSharedInitrd = CurrentInitrdName;
-                } // if
-                // TODO: Compute number of shared characters & compare with max.
-                CurrentInitrdName = CurrentInitrdName->Next;
-            }
-            if (MaxSharedInitrd)
-                InitrdName = StrDuplicate(MaxSharedInitrd->Value);
-        } // if/else
-    } // if
-    DeleteStringList(InitrdNames);
 
+
+    CHAR16* initrd = L"initramfs", *booster = L"booster";
+	MergeStrings(&initrd, KernelVersion,0);
+	MergeStrings(&booster, KernelVersion,0);
+	MergeStrings(&initrd, L".img",0);
+	MergeStrings(&booster, L".img",0);
+    while (DirIterNext(&DirIter, 2, L"init*,booster*", &DirEntry)) {
+	    LOG(1, LOG_LINE_NORMAL, L"'%s'   '%s'", initrd, DirEntry->FileName);
+		if(MyStriCmp(DirEntry->FileName, initrd)){
+			CurrentInitrdName = PoolPrint(L"%s%s", Path, initrd);
+		}
+		if(MyStriCmp(DirEntry->FileName, booster)){
+			CurrentInitrdName = PoolPrint(L"%s%s", Path, booster);
+		}
+	} // while
+    MyFreePool(initrd);
+	MyFreePool(booster);
     MyFreePool(KernelVersion);
     MyFreePool(Path);
     MyFreePool(FileName);
-    LOG(1, LOG_LINE_NORMAL, L"Located initrd is '%s'", InitrdName);
-    return (InitrdName);
+    LOG(1, LOG_LINE_NORMAL, L"Located initrd is '%s'", CurrentInitrdName);
+    return (CurrentInitrdName);
 } // static CHAR16 * FindInitrd()
 
 // Adds InitrdPath to Options, but only if Options doesn't already include an
@@ -187,7 +163,9 @@ CHAR16 * GetMainLinuxOptions(IN CHAR16 * LoaderPath, IN REFIT_VOLUME *Volume) {
     InitrdName = FindInitrd(LoaderPath, Volume);
     KernelVersion = FindNumbers(InitrdName);
     ReplaceSubstring(&Options, KERNEL_VERSION, KernelVersion);
-    FullOptions = AddInitrdToOptions(Options, InitrdName);
+    ReplaceSubstring(&Options, KERNEL_FILE, InitrdName);
+
+	FullOptions = AddInitrdToOptions(Options, InitrdName);
 
     MyFreePool(Options);
     MyFreePool(InitrdName);

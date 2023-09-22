@@ -237,6 +237,7 @@
 
 // Configuration file variables
 #define KERNEL_VERSION L"%v"
+#define KERNEL_FILE L"%f"
 #define MAX_RES_CODE 2147483647 /* 2^31 - 1 */
 
 //
