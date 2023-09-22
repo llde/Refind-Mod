@@ -222,8 +222,8 @@ GetParams() {
       echo "The --encryptkeys option requires the use of --localkeys! Aborting!"
       exit 1
    fi
-   RLConfFile="$RootDir/boot/refind_linux.conf"
-   EtcKeysDir="$RootDir/etc/refind.d/keys"
+   RLConfFile=$(realpath "$RootDir/boot/refind_linux.conf")
+   EtcKeysDir=$(realpath "$RootDir/etc/refind.d/keys")
 } # GetParams()
 
 # Get a yes/no response from the user and place it in the YesNo variable.
@@ -514,17 +514,18 @@ SetVarsForMsBoot() {
 #   install under that name, "hijacking" the Windows boot loader filename
 DetermineTargetDir() {
    Upgrade=0
-
-   if [[ -f $InstallDir/EFI/BOOT/refind.conf && ! -f $InstallDir/EFI/refind/refind.conf ]] ; then
+   if [[ $InstallDir == *"/efi" ]] ; then
+	   TargetDir="/refind" 
+   fi
+   if [[ -f $InstallDir/EFI/BOOT/refind.conf && ! -f $InstallDir/$TargetDir/refind.conf ]] ; then
       SetVarsForBoot
       Upgrade=1
    fi
-   if [[ -f $InstallDir/EFI/Microsoft/Boot/refind.conf && ! -f $InstallDir/EFI/refind/refind.conf ]] ; then
+   if [[ -f $InstallDir/EFI/Microsoft/Boot/refind.conf && ! -f $InstallDir/$TargetDir/refind.conf ]] ; then
       SetVarsForMsBoot
       Upgrade=1
    fi
-   if [[ -f $InstallDir/EFI/refind/refind.conf ]] ; then
-      TargetDir="/EFI/refind"
+   if [[ -f $InstallDir/$TargetDir/refind.conf ]] ; then
       if [[ $ShimSource == "none" || $KeepName == 1 ]] ; then
          TargetX64="refind_x64.efi"
          TargetIA32="refind_ia32.efi"
@@ -648,11 +649,11 @@ CopyDrivers() {
 # directory on the ESP. Must be passed a suitable architecture code (ia32
 # or x64).
 CopyTools() {
-   mkdir -p "$InstallDir/EFI/tools"
+   mkdir -p "$InstallDir/$TargetDir/../tools"
    if [[ $OSTYPE == darwin* ]] ; then
-      cp -f "$RefindDir/tools_$1/gptsync_$1.efi" "$InstallDir/EFI/tools/"
-      if [[ -f "$InstallDir/EFI/tools/gptsync.efi" ]] ; then
-         mv "$InstallDir/EFI/tools/gptsync.efi" "$InstallDir/EFI/tools/gptsync.efi-disabled"
+      cp -f "$RefindDir/tools_$1/gptsync_$1.efi" "$InstallDir/$TargetDir/../tools/"
+      if [[ -f "$InstallDir/$TargetDir/../tools/gptsync.efi" ]] ; then
+         mv "$InstallDir/$TargetDir/../tools/gptsync.efi" "$InstallDir/$TargetDir/../tools/gptsync.efi-disabled"
          echo "Found old gptsync.efi; disabling it by renaming it to gptsync.efi-disabled"
       fi
    fi
@@ -662,7 +663,7 @@ CopyTools() {
 # Sets Problems=1 if any critical commands fail.
 CopyRefindFiles() {
    mkdir -p "$InstallDir/$TargetDir"
-   if [[ "$TargetDir" == '/EFI/BOOT' ]] ; then
+   if [[ "$TargetDir" == *'/BOOT' ]] ; then
       if ! cp "$RefindDir/refind_ia32.efi" "$InstallDir/$TargetDir/$TargetIA32" 2> /dev/null ; then
          echo "Note: IA32 (x86) binary not installed!"
       fi
@@ -686,7 +687,7 @@ CopyRefindFiles() {
       fi
       Refind="boot$Platform.efi"
       CopyKeys
-   elif [[ $Platform == 'x64' || $TargetDir == "/EFI/Microsoft/Boot" ]] ; then
+   elif [[ $Platform == 'x64' || $TargetDir == *"/Microsoft/Boot" ]] ; then
       if ! cp "$RefindDir/refind_x64.efi" "$InstallDir/$TargetDir/$TargetX64" ; then
          Problems=1
       fi
@@ -762,7 +763,7 @@ CopyRefindFiles() {
    # of refind.conf and edit the main copy to include the "install" and "bootorder"
    # options, so that the system can be used to install rEFInd if it's on a USB
    # flash drive or CD-R....
-   if [[ "$TargetDir" == '/EFI/BOOT' ]] ; then
+   if [[ "$TargetDir" == *'/BOOT' ]] ; then
       cp -f "$ConfFile" "$InstallDir/$TargetDir/refind.conf-sample"
       sed -i 's/#showtools shell/showtools install, shell/g' "$InstallDir/$TargetDir/refind.conf"
    fi
@@ -957,7 +958,7 @@ InstallOnOSX() {
    echo "Installing rEFInd on macOS...."
    if [[ "$InstallToEspOnMac" == "1" && -z "$TargetPart" ]] ; then
       MountOSXESP
-   elif [[ "$TargetDir" == "/EFI/BOOT" || "$OwnHfs" == '1' ]] ; then
+   elif [[ "$TargetDir" == *"/BOOT" || "$OwnHfs" == '1' ]] ; then
       MountDefaultTarget
    else
       InstallDir="$RootDir/"
@@ -971,7 +972,7 @@ InstallOnOSX() {
    cp "$ThisDir/mountesp" /usr/local/bin/ &> /dev/null
    if [[ $InstallToEspOnMac == "1" && -z "$TargetPart" ]] ; then
       bless --mount "$InstallDir" --setBoot --file "$InstallDir/$TargetDir/$Refind" --shortform
-   elif [[ "$TargetDir" != "/EFI/BOOT" ]] ; then
+   elif [[ "$TargetDir" != *"/BOOT" ]] ; then
       bless --setBoot --folder "$InstallDir/$TargetDir" --file "$InstallDir/$TargetDir/$Refind"
    fi
    if [[ $? != 0 ]] ; then
@@ -1008,7 +1009,7 @@ CheckSecureBoot() {
    elif [[ -f /sys/firmware/efi/vars/SecureBoot-8be4df61-93ca-11d2-aa0d-00e098032b8c/data ]] ; then
       IsSecureBoot=$(od -An -t u1 /sys/firmware/efi/vars/SecureBoot-8be4df61-93ca-11d2-aa0d-00e098032b8c/data | tr -d '[:space:]')
    fi
-   if [[ $IsSecureBoot == "1" && "$TargetDir" != '/EFI/BOOT' && "$ShimSource" == "none" ]] ; then
+   if [[ $IsSecureBoot == "1" && "$TargetDir" != *'/BOOT' && "$ShimSource" == "none" ]] ; then
       echo ""
       echo "CAUTION: Your computer appears to be booted with Secure Boot, but you haven't"
       echo "specified a valid shim.efi file source. Chances are you should re-run with"
@@ -1381,7 +1382,7 @@ GenerateRefindLinuxConf() {
       echo "Creating $RLConfFile; edit it to adjust kernel options."
       RootFS=$(df "$RootDir" | grep dev | cut -f 1 -d " ")
       StartOfDevName=$(echo "$RootFS" | cut -b 1-7)
-      if [[ "$StartOfDevName" == "/dev/sd" || "$StartOfDevName" == "/dev/hd" || "$StartOfDevName" == "/dev/vd" ]] ; then
+      if [[ "$StartOfDevName" == "/dev/sd" || "$StartOfDevName" == "/dev/hd" || "$StartOfDevName" == "/dev/vd" || "$StartOfDevName" == "/dev/nv" ]] ; then
          # Identify root filesystem by UUID rather than by device node, if possible
          Uuid=$(blkid -o export -s UUID "$RootFS" 2> /dev/null | grep UUID=)
          if [[ -n $Uuid ]] ; then
@@ -1392,9 +1393,9 @@ GenerateRefindLinuxConf() {
          local FirstCmdlineOption
          FirstCmdlineOption=$(cut -d ' ' -f 1 < /proc/cmdline)
          if [[ "$FirstCmdlineOption" =~ (vmlinuz|bzImage|kernel) ]] ; then
-            DefaultOptions=$(cut -d ' ' -f 2- < /proc/cmdline | sed 's/\S*initrd=\S*//g' | sed 's/ *$//' | sed 's/^ *//')
+            DefaultOptions="rw root=$RootFS"
          else
-            DefaultOptions=$(sed 's/\S*initrd=\S*//g' < /proc/cmdline | sed 's/ *$//' | sed 's/^ *//')
+            DefaultOptions="rw root=$RootFS"
          fi
       else
          if [[ -f "$RootDir/etc/default/grub" ]] ; then
@@ -1402,7 +1403,7 @@ GenerateRefindLinuxConf() {
             source "$RootDir/etc/default/grub"
             echo "Setting default boot options based on $RootDir/etc/default/grub"
          fi
-         DefaultOptions="ro root=$RootFS $GRUB_CMDLINE_LINUX $GRUB_CMDLINE_LINUX_DEFAULT"
+         DefaultOptions="rw root=$RootFS $GRUB_CMDLINE_LINUX $GRUB_CMDLINE_LINUX_DEFAULT"
       fi
       echo "\"Boot with standard options\"  \"$DefaultOptions\"" > "$RLConfFile"
       echo "\"Boot to single-user mode\"    \"$DefaultOptions single\"" >> "$RLConfFile"
@@ -1457,7 +1458,7 @@ InstallOnLinux() {
    fi
    echo "Installing rEFInd on Linux...."
    modprobe efivars &> /dev/null
-   if [[ $TargetDir == "/EFI/BOOT" ]] ; then
+   if [[ $TargetDir == *"/BOOT" ]] ; then
       MountDefaultTarget
    else
       FindMountedESP
@@ -1470,7 +1471,7 @@ InstallOnLinux() {
 
    CheckSecureBoot
    CopyRefindFiles
-   if [[ "$TargetDir" != "/EFI/BOOT" && "$TargetDir" != "/EFI/Microsoft/Boot" ]] ; then
+   if [[ "$TargetDir" != *"/BOOT" && "$TargetDir" != *"/Microsoft/Boot" ]] ; then
       AddBootEntry
       GenerateRefindLinuxConf
    fi
